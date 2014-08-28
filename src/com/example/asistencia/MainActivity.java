@@ -1,10 +1,12 @@
 package com.example.asistencia;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -43,6 +45,7 @@ import android.nfc.tech.MifareClassic;
 
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
+
 import android.net.NetworkInfo;
 
 
@@ -68,6 +71,8 @@ public class MainActivity extends Activity {
     public String fecha;
  	public Button boton_entrada;
  	public Button boton_salida;
+ 	private String data_archivo;
+ 	public boolean up_foto;
  	
  	public String ftp_ip="190.153.249.118";
     public String ftp_clave="tui2013";
@@ -77,7 +82,7 @@ public class MainActivity extends Activity {
 	public String ftp_path="load_marca/";
     public String ftp_path_full="tui/load_marca/";
     public Boolean estado_conec=true;
- 	
+ 	public boolean no_conec=true;
  	/*CAMERa*/
  	private ImageView imagen;
 	private static int TAKE_PICTURE = 1;
@@ -89,10 +94,22 @@ public class MainActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.inicio);
+		String[] archivos = fileList();
+        
+		if (!existe(archivos, "marca.txt"))
+		{
+			grabar("","marca.txt");
+		}
+		//leerArchivo("marca.txt");
+		//LimpiarArchivo("marca.txt");
 		if(!isInternetOn())
 		{
-			setContentView(R.layout.inicio);
+			if(!no_conec)
+			{
+				setContentView(R.layout.inicio);
+			}
 			Toast.makeText(this, " SISTEMA NO CONECTADO A INTERNET. ", Toast.LENGTH_LONG).show();
+			
 		}
 		/* FTP*/
 		StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder()
@@ -248,13 +265,13 @@ public class MainActivity extends Activity {
                data2=readSeccionBloque(mfc, 2, 0);
                cliente=getHexaString(data2).trim();
                //showMensaje("DATA::"+nombre+"");
-               /*writeText(mfc, 1, 0, "Jose Antonio");
-               writeText(mfc, 1, 1, "romero");
+               /*writeText(mfc, 1, 0, "vale");
+               writeText(mfc, 1, 1, "munoz");
                writeText(mfc, 1, 2, "");
               
-               writeText(mfc, 2, 0, "20");
+               writeText(mfc, 2, 0, "1");
                writeText(mfc, 2, 1, "Architeq");
-               writeText(mfc, 2, 2, "56787674");*/
+               writeText(mfc, 2, 2, "156666947");*/
 
            } catch (IOException e) {
                //Log.e(TAG, "No Conecto", e);
@@ -279,12 +296,13 @@ public class MainActivity extends Activity {
     public void onNewIntent(Intent intent) {
         //Log.i("Foreground dispatch", "Discovered tag with intent: " + intent);
     	//refreshFecha_hora();
-		if(!isInternetOn())
+		if(!isInternetOn() && !no_conec)
 		{
-			setContentView(R.layout.inicio);
+			
 			Toast.makeText(this, " SISTEMA NO CONECTADO A INTERNET. ", Toast.LENGTH_LONG).show();
 		}else
 		{
+			
 			handleIntent(intent);
 			if(!dni.equals("") && !nombre.equals("") && !cliente.equals(""))
 			{
@@ -357,6 +375,8 @@ public class MainActivity extends Activity {
 		}
 		public void mostrarDatosTarjeta()
 		{
+			name2="";
+			name = "";
 			setContentView(R.layout.activity_main);
 			
 			refreshFecha_hora();
@@ -375,13 +395,17 @@ public class MainActivity extends Activity {
 		        	
 		        	
 		        	Intent intent_foto =  new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+		        	
                 	int code = TAKE_PICTURE;
 		        	Date date = new Date();
 	            	SimpleDateFormat hourFormat = new SimpleDateFormat("HHmmss");
 	            	name = Environment.getExternalStorageDirectory() + "/"+dni+"_"+hourFormat.format(date)+".jpg";
-	            	name2=""+dni+"_"+hourFormat.format(date)+".jpg";
+	            	name2=dni+"_"+hourFormat.format(date)+".jpg";
 	            	Uri output = Uri.fromFile(new File(name));
-	            	intent_foto.putExtra(MediaStore.EXTRA_OUTPUT, output);
+	            	
+	                intent_foto.putExtra(MediaStore.EXTRA_OUTPUT, output);
+	            	//intent_foto.putExtra(MediaStore.EXTRA_SIZE_LIMIT,2000);
+	            	//
 	        	    startActivityForResult(intent_foto, code);     
 	        	    
 		        }
@@ -433,6 +457,7 @@ public class MainActivity extends Activity {
 	    			 */
 	    			new MediaScannerConnectionClient() {
 	    				private MediaScannerConnection msc = null; {
+	    					
 	    					msc = new MediaScannerConnection(getApplicationContext(), this); msc.connect();
 	    				}
 	    				public void onMediaScannerConnected() { 
@@ -456,12 +481,17 @@ public class MainActivity extends Activity {
 	      }
 	  	 public void marcacion(int tipo)
 	  	 {
-	 		if(!isInternetOn())
+	 		if(!isInternetOn() && !no_conec)
 			{
-	 			setContentView(R.layout.inicio);
-				Toast.makeText(this, " SISTEMA NO CONECTADO A INTERNET. ", Toast.LENGTH_LONG).show();
+	 			if(!no_conec)
+	 			{
+	 				setContentView(R.layout.inicio);
+	 				Toast.makeText(this, " SISTEMA NO CONECTADO A INTERNET. ", Toast.LENGTH_LONG).show();
+	 			}
+				
 			}else
 			{
+				
 	 		Calendar cal = Calendar.getInstance();
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 			fecha = sdf.format(cal.getTime());
@@ -474,23 +504,37 @@ public class MainActivity extends Activity {
 	  		}catch (Exception e)
 	        {
 	            e.printStackTrace();	            
-	            showMensaje("NO SE PUDO REALIZAR LA MARCACION. POR FAVOR INTENTELO NUEVAMENTE ");
-	            setContentView(R.layout.inicio);
+	            
+	            if(!no_conec)
+	            {
+	            	setContentView(R.layout.inicio);
+	            	showMensaje("NO SE PUDO REALIZAR LA MARCACION. POR FAVOR INTENTELO NUEVAMENTE ");
+	            }
 				//checkInternet();
 	            //almacenar en disco
+	            
 	        }
 			if(estado_producto.equals("0"))
 			{
 				if(tipo==1)
 				{
+					up_foto=true;
 					subirFtp(name,ftp_path_full,name2,0);
 				}
 				setContentView(R.layout.inicio);	
 				showMensaje("MARCACION REALIZADA");
 			}else
 			{
-			   showMensaje("NO SE PUDO REALIZAR LA MARCACION. POR FAVOR INTENTELO NUEVAMENTE ");
-			   setContentView(R.layout.inicio);
+				if(!no_conec)
+				{
+					setContentView(R.layout.inicio);
+					showMensaje("NO SE PUDO REALIZAR LA MARCACION. POR FAVOR INTENTELO NUEVAMENTE ");
+				}
+					
+					grabar(nombre+"|"+apellido_pat+"|"+apellido_mat+"|"+tipo+"|"+dni+"|"+fecha+"|"+cliente+"|"+name2,"marca.txt");
+					setContentView(R.layout.inicio);	
+					showMensaje("MARCACION REALIZADA");
+			   
 			   //checkInternet();
 			}
 			}
@@ -506,6 +550,8 @@ public class MainActivity extends Activity {
 		        	
 		            con = new FTPClient();  
 		            con.setConnectTimeout(5000);
+		            
+	            	
 		            con.connect(ftp_ip);
 		            Context fileContext;
 		            fileContext = this.getBaseContext();
@@ -513,8 +559,8 @@ public class MainActivity extends Activity {
 		            if (con.login(ftp_user, ftp_clave))
 		            {
 		            	
-		            	
-		            	
+		            	con.setSoTimeout(5000);
+		            	//con.setDataTimeout(5);
 		                con.enterLocalPassiveMode(); // important!
 		                con.setFileType(FTP.BINARY_FILE_TYPE);
 		                
@@ -526,6 +572,7 @@ public class MainActivity extends Activity {
 		                	FileInputStream in = new FileInputStream(new File(archivo));
 		                	result = con.storeFile(""+ftp_path+""+archivo_final+"", in);
 		                	in.close();
+		                	
 		                }
 		                if(tipo==1)
 		                {
@@ -544,8 +591,13 @@ public class MainActivity extends Activity {
 		        }
 		        catch (Exception e)
 		        {
-		            e.printStackTrace();	            
-		            Toast.makeText(this, "Problemas con la conexion al FTP."+e.getMessage(), Toast.LENGTH_SHORT).show();
+		            e.printStackTrace();	        
+		            up_foto=false;
+		            Toast.makeText(this, "Problemas con la conexion a internet.", Toast.LENGTH_SHORT).show();
+		            if(!no_conec)
+		            {
+		            	
+		            }
 		            //almacenar en disco
 		        }
 		    }
@@ -559,6 +611,10 @@ public class MainActivity extends Activity {
 		        } catch (IOException e1) {
 		            // TODO Auto-generated catch block
 		            e1.printStackTrace();
+		            if(!no_conec)
+		            {
+		            	
+		            }
 		            //Toast.makeText(this, "Problemas con la conexion al:: "+e1.getMessage(), Toast.LENGTH_SHORT).show();
 		            return "";
 		        }
@@ -586,6 +642,10 @@ public class MainActivity extends Activity {
 		            // TODO Auto-generated catch block
 		            e.printStackTrace();
 		            //Toast.makeText(this, "Problemas con la conexion 2:: ."+e.getMessage(), Toast.LENGTH_SHORT).show();
+		            if(!no_conec)
+		            {
+		            	
+		            }
 		            return "";
 		        }    
 		        
@@ -608,7 +668,7 @@ public class MainActivity extends Activity {
 		    	            httpConn.setAllowUserInteraction(false);
 		    	            httpConn.setInstanceFollowRedirects(true);
 		    	            httpConn.setRequestMethod("GET");
-		    	            httpConn.setConnectTimeout(10000);
+		    	            httpConn.setConnectTimeout(5000);
 		    	            httpConn.connect(); 
 		    	 
 		    	            response = httpConn.getResponseCode();                 
@@ -618,9 +678,11 @@ public class MainActivity extends Activity {
 		    	        }
 		    	        catch (Exception ex)
 		    	        {
-		    	                  
-		    	            
-		    	            Toast.makeText(this, "Problemas con la conexion de internet. Por favor solicitar revisar.", Toast.LENGTH_SHORT).show();
+		    	        	if(!no_conec)
+		    	        	{
+		    	        		Toast.makeText(this, "Problemas con la conexion de internet. Por favor solicitar revisar.", Toast.LENGTH_SHORT).show();
+		    	        	}
+		    	        	//Toast.makeText(this, "Problemas "+ex.getMessage(), Toast.LENGTH_SHORT).show();
 		    	        }
 		    	        return in;     
 		    	    }
@@ -634,4 +696,81 @@ public class MainActivity extends Activity {
 		    	    }
 		    	    return false;
 		        }
+    	    private boolean existe(String[] archivos, String archbusca) {
+		    			for (int f = 0; f < archivos.length; f++)
+		    				if (archbusca.equals(archivos[f]))
+		    					return true;
+		    			return false;
+		    		}
+
+    	    public String readArchivo(String archivo_nom)
+    	    {
+    	    	
+    	        String[] archivos = fileList();
+    	        String todo = "";
+    			if (existe(archivos, archivo_nom))
+    				try {
+    					InputStreamReader archivo = new InputStreamReader(
+    							openFileInput(archivo_nom));
+    					BufferedReader br = new BufferedReader(archivo);
+    					String linea = br.readLine();
+    					
+    					while (linea != null) {
+    						todo = todo + linea + "\n";
+    						linea = br.readLine();
+    					}
+    					br.close();
+    					archivo.close();
+    					
+    				} catch (IOException e) {
+    				}
+    	       return todo;
+    	    }
+    		public void grabar(String datos,String archivo_nom) 
+    		{
+    			
+    			data_archivo=readArchivo("marca.txt");
+    			try {
+    				
+    				OutputStreamWriter archivo = new OutputStreamWriter(openFileOutput(
+    						archivo_nom, Activity.MODE_PRIVATE));	    				
+    			   	
+    				
+    				archivo.write(data_archivo+""+datos.toString());
+    				archivo.flush();
+    				archivo.close();
+    			} catch (IOException e) {
+    			}
+    			//Toast t = Toast.makeText(this, "Los datos fueron grabados en archivo.",
+    				//	Toast.LENGTH_SHORT);
+    			//t.show();
+    			//finish();
+    			
+    		}
+    		public void LimpiarArchivo(String archivo_nom) {
+   			 
+    			try {
+    				OutputStreamWriter archivo = new OutputStreamWriter(openFileOutput(
+    						archivo_nom, Activity.MODE_PRIVATE));
+    				archivo.write("");
+    				archivo.flush();
+    				archivo.close();
+    			} catch (IOException e) {
+    			}
+    			
+    		}
+    		public void leerArchivo(String archivo_nom)
+    		{
+    			String archivo=readArchivo(archivo_nom);
+		   		
+		   		String data_arr[] =archivo.split("\n");
+		   		
+		   		
+		   		int i=0;
+	        	for(i=0;i<data_arr.length;i++)
+	        	{
+	        		showMensaje("num:"+i+""+data_arr[i]);
+	        		
+	        	}
+    		}
 }
